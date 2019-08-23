@@ -1,45 +1,35 @@
 package main
 
 import (
-	"math/rand"
+	"encoding/binary"
 	"time"
+
+	"github.com/sinalpha/security"
 )
 
-const (
-	letterIdxBits = 6                                                                // 6 bits to represent a letter index
-	letterIdxMask = 1<<letterIdxBits - 1                                             // All 1-bits, as many as letterIdxBits
-	letters       = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" //"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	step          = 63 / letterIdxBits                                               // # of letter indices fitting in 63 bits
-)
-
-var (
-	src    = rand.NewSource(time.Now().UnixNano())
-	length = len(letters)
-)
-
-/*
-// String retrun a random string of size
-func String(size int) string {
-	return string(randStringBytesMaskImprSrc(size))
+func randStr() string {
+	randBytes := security.NewEncryptionKey()
+	bs := make([]byte, 32)
+	copy(bs, randBytes[:])
+	return security.ToString(bs)
 }
-*/
 
-func randStringBytesMaskImprSrc(n int) (b []byte, err error) {
-	/*
-		var mu sync.Mutex
-		mu.Lock()
-		defer mu.Unlock()
-	*/
-	b = make([]byte, n)
-	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
-	for i, cache, remain := n-1, src.Int63(), step; i >= 0; cache >>= letterIdxBits {
-		if remain == 0 {
-			cache, remain = src.Int63(), step
-		}
-		idx := int(cache&letterIdxMask) % length
-		b[i] = letters[idx]
-		i--
-		remain--
-	}
-	return b, nil
+// Gen2fa ...
+func Gen2fa(tag string, interval int64) (uint32, int64) {
+	epochSeconds := time.Now().Unix()
+	secondsRemaining := interval - (epochSeconds % interval)
+
+	value := make([]byte, 8)
+	binary.PutVarint(value, epochSeconds/interval)
+
+	h := security.Hash(tag, value)
+
+	offset := h[len(h)-1] & 0x0F
+	bytes := h[offset : offset+4]
+
+	// ignore the most significant bit as per RFC 4226
+	bytes[0] = bytes[0] & 0x7F
+
+	number := binary.BigEndian.Uint32(bytes)
+	return number % 1000000, secondsRemaining
 }
