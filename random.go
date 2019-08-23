@@ -9,9 +9,7 @@ import (
 
 func randStr() string {
 	randBytes := security.NewEncryptionKey()
-	bs := make([]byte, 32)
-	copy(bs, randBytes[:])
-	return security.ToString(bs)
+	return security.ToString(randBytes[:])
 }
 
 // Gen2fa ...
